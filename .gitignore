@@ -169,3 +169,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Test file
+DTC.ipynb
+test.py
+
+# Test Data
+DTC_test_data
