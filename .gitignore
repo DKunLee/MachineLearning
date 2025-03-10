@@ -170,6 +170,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# vscode setting
+.vscode
+
 # Test file
 DTC.ipynb
 test.py
