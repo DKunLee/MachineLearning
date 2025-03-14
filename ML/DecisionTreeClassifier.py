@@ -3,174 +3,266 @@ from math import log2
 
 
 class DecisionTreeClassifier():
+    """
+    A Decision Tree Classifier implemented using the ID3 algorithm with entropy-based splitting.
+    Supports both categorical and numerical attributes.
+    """
     class __Node:
+        """
+        A private class representing a node in the decision tree.
+        """
         def __init__(self, attribute=None, threshold=None, label=None):
-            self.attribute = attribute
+            """
+            Initialize a tree node.
+            
+            Parameters:
+            - attribute (int or None): The index of the feature to split on.
+            - threshold (float or None): The threshold value for numeric splits.
+            - label (int or None): The class label if it's a leaf node.
+            """
+            self.attrubute = attribute
             self.threshold = threshold
-            # Can have children or label
             self.label = label
-            self.children = {}
-    
+            self.children = dict()
 
-    def __init__(self, criterion:str="entropy", algo:str="ID3", max_depth:int=None):
-        self.criterion = criterion
-        self.algo = algo
+    
+    def __init__(self, max_depth:int=None, criterion:str="entropy", algorithm:str="ID3"):
+        """
+        Initialize the Decision Tree Classifier.
+        
+        Parameters:
+        - max_depth (int or None): The maximum depth of the tree (None means unlimited depth).
+        - criterion (str): The metric used for split selection ('entropy' only).
+        - algorithm (str): The algorithm type ('ID3' only, others not implemented).
+        """
         self.max_depth = max_depth
+        self.criterion = criterion
+        self.algorithm = algorithm
         self.root = None
         self.majority_label = None
-    
 
+    # Done
     def fit(self, X:np.ndarray, y:np.ndarray):
-        self.majority_label = self.__majority_label(y)
+        """
+        Train the decision tree model using the given dataset.
+        
+        Parameters:
+        - X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+        - y (np.ndarray): Target labels of shape (n_samples,).
+        """
+        self.majority_label = self.__major_label(y)
 
         if self.criterion == "entropy":
-            if self.algo == "ID3":
-                self.root = self.__ID3(X, y, list(np.arange(0, X.shape[1])))
+            if self.algorithm == "ID3":
+                attrs = list(np.arange(0, X.shape[1]))
+                self.root = self.__ID3(X, y, attrs, self.max_depth)
             else:
                 raise ValueError("No such algorithm or hasn't implemented yet.")
         else:
             raise ValueError("No such information gain criterion or hasn't implemented yet.")
-        
     
-    def predict(self, X:np.ndarray):
-        rtn = []
-        for r in X:
-            pred_y = self.__predictor(list(r), self.root)
-            rtn.append(pred_y)
-        return np.array(rtn)
-            
-
-    def __predictor(self, row:list, node:__Node):
-        if node.label is not None:
-            return node.label
-        if node.attribute is None:
-            return self.majority_label
+    def __ID3(self, X:np.ndarray, y:np.ndarray, attrs:list, depth_limit:int=None) -> __Node:
+        """
+        Recursively build the decision tree using the ID3 algorithm.
         
-        val = row[node.attribute]
-
-        if node.threshold is not None:
-            child_key = f">{node.threshold}" if float(val) > node.threshold else f"<={node.threshold}"
-        else:
-            child_key = val
+        Parameters:
+        - X (np.ndarray): Feature matrix.
+        - y (np.ndarray): Target labels.
+        - attrs (list): List of available attributes to split on.
+        - depth_limit (int or None): Maximum allowed depth.
         
-        return self.__predictor(row, node.children[child_key])
-
-    
-
-    def __ID3(self, X:np.ndarray, y:np.ndarray, attrs:list, depth_limit=None):
-        if (depth_limit == 0 or len(attrs) == 0):
-            return self.__Node(label=self.__majority_label(y))
-        vals = np.unique(y)
-        if vals.size == 1:
-            return self.__Node(label=vals[0])
+        Returns:
+        - __Node: The root node of the constructed tree.
+        """
+        if depth_limit == 0 or len(attrs) == 0:
+            return self.__Node(label=self.majority_label)
+        if np.unique(y).size == 1:
+            return self.__Node(label=y[0])
         
-        attr = self.__ig_classifier(X, y, attrs)
-        attrs.remove(attr)
-        node = self.__Node(attribute=attr)
+        best_attr = self.__best_ig(X, y, attrs)
+        attrs.remove(best_attr)
+        node = self.__Node(attribute=best_attr)
 
-        only_A = X[:, attr]
-        
-        if self.__is_numeric(only_A):
-            _, t = self.__best_t(only_A, y)
+        x = X[:, best_attr]
+
+        if self.__is_numeric(x):
+            _, t = self.__best_t(x, y)
             node.threshold = t
+            
+            sub_i = x>t
+            L_x, L_y = X[~sub_i], y[~sub_i]
+            R_x, R_y = X[sub_i], y[sub_i]
 
-            sub_i = only_A > t
-            sub_L_x, sub_L_y = X[~sub_i], y[~sub_i]
-            sub_R_x, sub_R_y = X[sub_i], y[sub_i]
-
-            node.children[f"<={t}"] = self.__ID3(sub_L_x, sub_L_y, attrs, None if depth_limit is None else depth_limit-1)
-            node.children[f">{t}"] = self.__ID3(sub_R_x, sub_R_y, attrs, None if depth_limit is None else depth_limit-1)
+            node.children[f"<={t}"] = self.__ID3(L_x, L_y, attrs, None if depth_limit is None else depth_limit-1)
+            node.children[f">{t}"] = self.__ID3(R_x, R_y, attrs, None if depth_limit is None else depth_limit-1)
         else:
-            unique_vals = np.unique(only_A)
-            for val in unique_vals:
-                sub_i = only_A==val
-                sub_x, sub_y = X[sub_i], y[sub_i]
-
-                if sub_y.size==0:
-                    node.children[val] = self.__Node(label=self.majority_label)
-                else:
-                    node.children[val] = self.__ID3(sub_x, sub_y, attrs, None if depth_limit is None else depth_limit-1)
+            values = np.unique(x)
+            for val in values:
+                sub_i = x==val
+                sub_x, sub_y = x[sub_i], y[sub_i]
+                
+                node.children[val] = self.__ID3(sub_x, sub_y, attrs, None if depth_limit is None else depth_limit-1)
 
         return node
-    
 
-    def __ig_classifier(self, X:np.ndarray, y:np.ndarray, attrs:list):
+    
+    def __best_ig(self, X:np.ndarray, y:np.ndarray, attrs:list):
+        """
+        Determine the best attribute to split on by calculating information gain.
+        
+        Parameters:
+        - X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+        - y (np.ndarray): Target labels of shape (n_samples,).
+        - attrs (list): List of available attributes to evaluate.
+        
+        Returns:
+        - int: Index of the best attribute to split on.
+        """
         total_entropy = self.__entropy(y)
-        total_length = y.size
+        total_len = y.size
         max_ig = float('-inf')
         best_attr = None
 
-        for i in attrs:
-            x = X[:, i]
-            unique_x = np.unique(x)
-            if unique_x.size == 1:
-                best_attr, max_ig = i, 1
-                continue
+        for attr in attrs:
+            x = X[:, attr]
+            values, counts = np.unique(x, return_counts=True)
 
             exp_entropy = 0
             ig = 0
 
             if self.__is_numeric(x):
-                ig, t = self.__best_t(x, y)
+                ig, _ = self.__best_t(x, y)
             else:
-                for val in unique_x:
+                for val, cnt in zip(values, counts):
                     sub_y = y[x==val]
-                    exp_entropy += ((sub_y.size/total_length)*self.__entropy(sub_y))
+                    exp_entropy += ((cnt/total_len)*self.__entropy(sub_y))
                 ig = total_entropy - exp_entropy
             
             if ig > max_ig:
-                best_attr, max_ig = i, ig
+                max_ig = ig
+                best_attr = attr
         
         return best_attr
 
 
     def __best_t(self, x:np.ndarray, y:np.ndarray):
-        t = 0
+        """
+        Determine the best threshold for splitting a numerical attribute.
+        
+        Parameters:
+        - x (np.ndarray): The numerical feature column.
+        - y (np.ndarray): The corresponding target labels.
+        
+        Returns:
+        - tuple: (float, float) The best information gain and corresponding threshold.
+        """
+        t = None
         total_entropy = self.__entropy(y)
-        total_length = y.size
-        unique_x = np.unique(x)
+        total_len = y.size
+        values = np.unique(x)
         max_ig = float('-inf')
 
-        if unique_x.size == 1:
-            return unique_x[0]
-        
-        # Potential split points
-        sp_points = [(unique_x[i-1]+unique_x[i])/2 for i in range(1, unique_x.size)]
-        for pnt in sp_points:
-            sub_i = x>pnt
-            sub_L_y, sub_R_y = y[~sub_i], y[sub_i]
-            exp_entropy = ((sub_L_y.size/total_length)*self.__entropy(sub_L_y)) + ((sub_R_y.size/total_length)*self.__entropy(sub_R_y))
-            sub_ig = total_entropy - exp_entropy
-            if sub_ig > max_ig:
-                max_ig, t = sub_ig, pnt
+        sp_points = [(values[i-1]+values[i])/2 for i in range(1, values.size)]
+
+        for temp_t in sp_points:
+            greater_than_temp_t = x>temp_t 
+            L_y, R_y = y[~greater_than_temp_t], y[greater_than_temp_t]
+
+            exp_entropy = (L_y.size/total_len)*self.__entropy(L_y) + (R_y.size/total_len)*self.__entropy(R_y)
+            ig = total_entropy - exp_entropy
+            if ig > max_ig:
+                max_ig = ig
+                t = temp_t
         
         return max_ig, t
 
-
-    def __entropy(self, label:np.ndarray):
-        total_length = label.size
-        values, val_counts = np.unique(label, return_counts=True)
-        if (values.size == 1):
-            return 0
+    def __entropy(self, y:np.ndarray):
+        """
+        Compute the entropy of a given set of labels.
         
-        entropy = 0
-        for count in val_counts:
-            p = count/total_length
-            entropy -= p*log2(p)
-
-        return entropy
-
-
-    def __majority_label(self, y:np.ndarray):
+        Parameters:
+        - y (np.ndarray): Array of target labels.
+        
+        Returns:
+        - float: Entropy value.
+        """
+        total_len = y.size
         values, counts = np.unique(y, return_counts=True)
-        most_freq_label = values[np.argmax(counts)]
-        return most_freq_label
+        entropy = 0
+        if values.size != 1:
+            for cnt in counts:
+                p = cnt/total_len
+                entropy -= p*log2(p)
+        
+        return entropy
+        
+    def predict(self, X:np.ndarray) -> np.ndarray:
+        """
+        Predict class labels for input data.
+        
+        Parameters:
+        - X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+        
+        Returns:
+        - np.ndarray: Predicted class labels of shape (n_samples,).
+        """
+        rtn = []
+        for r in X:
+            rtn.append(self.__predictor(list(r), self.root))
+        return np.array(rtn)
     
+    def __predictor(self, row:list, node:__Node):
+        """
+        Recursively traverse the decision tree to make a prediction for a single instance.
+        
+        Parameters:
+        - row (list): A single instance's feature values.
+        - node (__Node): The current node in the decision tree.
+        
+        Returns:
+        - int: Predicted label.
+        """
+        if node.label is not None:
+            return node.label
+        
+        val = row[node.attrubute]
 
-    def __is_numeric(self, col:np.ndarray):
+        if node.threshold is not None:
+            chile_key = f">{node.threshold}" if float(val)>node.threshold else f"<={node.threshold}"
+        else:
+            chile_key = val
+
+        if chile_key in node.children.keys():
+            return self.__predictor(row, node.children[chile_key])
+        else:
+            return self.majority_label
+
+    def __major_label(self, y:np.ndarray=None):
+        """
+        Find the most common class label in the dataset.
+        
+        Parameters:
+        - y (np.ndarray): Array of target labels.
+        
+        Returns:
+        - int: The majority class label.
+        """
+        values, counts = np.unique(y, return_counts=True)
+        return values[np.argmax(counts)]
+    
+    def __is_numeric(self, x:np.ndarray):
+        """
+        Check if a column contains numeric values.
+        
+        Parameters:
+        - x (np.ndarray): A column of feature values.
+        
+        Returns:
+        - bool: True if the column is numeric, otherwise False.
+        """
         try:
-            col.astype(float)
+            x.astype(float)
             return True
         except ValueError:
             return False
-
+        
