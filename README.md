@@ -243,20 +243,6 @@ jupyter notebook
 # - Decsion_Tree.ipynb
 ```
 
-## 🔍 Why This Project Matters
-
-**For Recruiters:**
-- Demonstrates strong fundamentals in machine learning and computer science
-- Shows ability to implement complex algorithms from mathematical specifications
-- Exhibits clean code practices and software engineering skills
-- Proves proficiency in Python, NumPy, and parallel computing
-
-**For Graduate Admissions:**
-- Evidence of deep understanding beyond using high-level libraries
-- Research-oriented approach with empirical validation
-- Self-directed learning and project completion
-- Strong mathematical and computational foundations
-
 ## 📝 License
 
 This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
